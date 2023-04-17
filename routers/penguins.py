@@ -1,22 +1,27 @@
-from fastapi import APIRouter, HTTPException, status
-from data import penguin_data # Permite traer los datos de las especies
+from fastapi import APIRouter, status
+from db.client import db_client # Conexión con la BBDD
+from db.models.penguin import Penguin # Importo el modelo
+from db.schemas.penguin import penguin_schema, penguins_schema # Importo las funciones para estructurar los datos y poder devolverlos correctamente
 
 
-router = APIRouter()
+router = APIRouter(prefix="/penguins",
+                   tags=["penguins"],
+                   responses={status.HTTP_404_NOT_FOUND: {"message": "No encontrado"}})
 
 
-def get_penguin(id): # Esta función sirve para filtrar las especies por su ID, devuelve una excepción si el id es incorrecto o no existe
-    penguins = filter(lambda penguin: penguin.id == id, penguin_data.penguin_list)
+def search_penguin(field: str, key): # Para filtrar los elementos según su campo y clave
+    
     try:
-        return list(penguins)[0]
+        penguin = db_client.penguins.penguin_species.find_one({field: key})
+        return Penguin(**penguin_schema(penguin))
     except:
-        raise HTTPException(status_code = status.HTTP_404_NOT_FOUND, detail="Especie no encontrada")
+        return {"error": "No existe la especie"}
+    
 
-
-@router.get("/penguins") # Esta ruta devuelve la lista de especies de pingüinos
+@router.get("/", response_model=list[Penguin]) # Esta ruta devuelve la lista de especies de pingüinos
 async def penguin():
-    return penguin_data.penguin_list
-
-@router.get("/penguins/{id}") # Esta ruta devuelve los datos de la especie del ID correspondiente
+    return penguins_schema(db_client.penguins.penguin_species.find())
+    
+@router.get("/{id}") # Esta ruta devuelve los datos de la especie del ID correspondiente
 async def penguin(id: int):
-    return get_penguin(id)
+    return search_penguin("id", id)
